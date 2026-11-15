@@ -22,3 +22,7 @@ python3 -m http.server 4173 --bind 127.0.0.1 --directory public
 - 「复制链接」把当前造型保存到链接中。用同一个已启动的站点打开链接即可恢复造型。
 
 界面参照 [雨丝 Wet Denier Lab 原站](https://newtonquan-yusi.pages.dev/) 制作。3D 材质、水效和场景着色为独立实现，光泽、纹理和水花细节与原站有可见差异。原模型与字体、Three.js 的署名及许可证随项目附上。
+
+## 许可证
+
+本项目独立实现的代码采用 [MIT 许可证](LICENSE)。模型、字体和 Three.js 按各自的许可证使用，见[素材署名](public/assets/ATTRIBUTION.md)和 [vendor 目录](public/vendor/)。原站名称、品牌、分享图和参考截图的权利归各自权利人。
