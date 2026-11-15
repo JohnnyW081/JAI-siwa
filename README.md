@@ -1,5 +1,7 @@
 # 雨丝 Wet Denier Lab · PC / H5 网页复刻
 
+[在线体验](https://yusi-wet-denier-lab.netlify.app/)
+
 同一个网页根据视口宽高和输入设备切换布局。PC 使用左侧工具栏和右侧设置面板，H5 使用底部工具栏和弹出面板。
 
 ## 本地打开
