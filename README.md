@@ -4,6 +4,16 @@
 
 同一个网页根据视口宽高和输入设备切换布局。PC 使用左侧工具栏和右侧设置面板，H5 使用底部工具栏和弹出面板。
 
+## 运行截图
+
+**桌面端 · 影棚**
+
+[![桌面端影棚、场景选择和衣橱面板](docs/images/desktop-studio.png)](docs/images/desktop-studio.png)
+
+| 桌面端 · 泳池边 | H5 · 衣橱 |
+| --- | --- |
+| <a href="docs/images/desktop-pool.png"><img src="docs/images/desktop-pool.png" width="512" alt="桌面端泳池场景和水面波纹"></a> | <a href="docs/images/mobile-wardrobe.png"><img src="docs/images/mobile-wardrobe.png" width="148" alt="手机竖屏布局和打开的衣橱面板"></a> |
+
 ## 本地打开
 
 在当前目录运行以下命令，然后打开 [本地预览](http://127.0.0.1:4173/)。
