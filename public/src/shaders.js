@@ -36,45 +36,45 @@ export const stageFragment = /* glsl */`
     vec2 lines = 1. - smoothstep(vec2(.010), vec2(.019)+antialias, distanceToGrout);
     return max(lines.x,lines.y);
   }
-  vec3 bathroom(vec2 p) {
-    float corner = abs(p.x - .30);
-    float wallLine = .111 - corner * (p.x > .30 ? .116 : .18);
-    float seam = border(vec2((p.x + max(0.,p.x - .3)*.19)*21., (p.y-wallLine)*12.4));
-    vec3 rgb = mix(vec3(.70,.81,.83),vec3(.77,.86,.87),1.-p.y);
-    rgb = mix(rgb,vec3(.66,.80,.84),1.-smoothstep(.04,.045,p.y-wallLine));
-    rgb = mix(rgb,vec3(.916,.913,.909),1.-smoothstep(-.002,.005,p.y-wallLine));
-    rgb -= .016*seam;
-    rgb *= 1.-.048*exp(-abs(p.x-.3)*42.);
-    float floorY = .60 + .13*corner;
-    vec3 floorRgb = vec3(.816,.839,.855)+tileFloor(p,0.)*.058;
-    rgb = mix(rgb,floorRgb,smoothstep(-.004,.004,p.y-floorY));
-
-    float duck = max(disc(p,vec2(.564,.348),vec2(.023,.030),.28),
-                     disc(p,vec2(.581,.319),vec2(.015,.025),.26));
-    rgb = mix(rgb,vec3(.93,.84,.44),duck*.96);
-    rgb = mix(rgb,vec3(.82,.60,.31),disc(p,vec2(.594,.322),vec2(.008,.010),.4));
-    rgb = mix(rgb,vec3(.42,.35,.26),disc(p,vec2(.583,.312),vec2(.0035,.006),.6));
-
-    float faucet = box(p,vec2(.501,.113),vec2(.004,.121),.006);
-    faucet = max(faucet,box(p,vec2(.500,.252),vec2(.027,.009),.008));
-    faucet = max(faucet,box(p,vec2(.501,.270),vec2(.004,.017),.007));
-    faucet = max(faucet,disc(p,vec2(.524,.251),vec2(.010,.017),.35));
-    faucet = max(faucet,disc(p,vec2(.472,.252),vec2(.010,.017),.35));
-    rgb = mix(rgb,vec3(.66,.70,.71),faucet*.9);
-    rgb = mix(rgb,vec3(.90,.91,.90),faucet*box(p,vec2(.500,.153),vec2(.003,.097),.003)*.6);
-    rgb = mix(rgb,vec3(.45,.66,.85),disc(p,vec2(.525,.252),vec2(.004,.006),.6));
-    rgb = mix(rgb,vec3(.87,.57,.59),disc(p,vec2(.471,.254),vec2(.004,.006),.6));
-    rgb = mix(rgb,vec3(.86,.67,.75),box(p,vec2(.341,.326),vec2(.011,.049),.005));
-
-    float yTop = .367 + max(0.,p.x-.23)*.028;
-    float yBottom = .646 + max(0.,p.x-.15)*.237;
-    float front = step(.154,p.x) * step(p.x,.783) * step(yTop,p.y) * step(p.y,yBottom);
-    float side = step(.781,p.x) * step(p.x,.868) * step(yTop,p.y) * step(p.y,.79-(p.x-.783)*.88);
-    vec3 porcelain = mix(vec3(.965,.967,.968),vec3(.822,.824,.826),smoothstep(.393,.79,p.y));
-    rgb = mix(rgb,porcelain,front);
-    rgb = mix(rgb,porcelain*.958,side);
-    float rim = step(.154,p.x)*step(p.x,.868)*(smoothstep(yTop-.007,yTop,p.y)-smoothstep(yTop+.003,yTop+.007,p.y));
-    return mix(rgb,vec3(.81,.94,.94),rim);
+  vec3 study(vec2 p) {
+    // warm wood wall (top) / wood floor (bottom)
+    vec3 rgb = mix(vec3(.330,.235,.158),vec3(.214,.150,.102),smoothstep(.04,1.,p.y));
+    float floorY = .612 + .075*abs(p.x - .44);
+    float grain = .5 + .5*sin(p.y*760. + sin(p.x*29.)*2.2);
+    vec3 wood = mix(vec3(.452,.302,.188),vec3(.360,.232,.142),grain);
+    wood -= .05*tileFloor(p,.5);
+    rgb = mix(rgb,wood,smoothstep(-.012,.012,p.y-floorY));
+    // bookshelf (left): dark frame + two dividers + books
+    float sL=.075, sR=.548, sT=.050, sB=.478;
+    float scx=(sL+sR)*.5, scy=(sT+sB)*.5;
+    rgb = mix(rgb,vec3(.146,.098,.066),box(p,vec2(scx,scy),vec2((sR-sL)*.5,(sB-sT)*.5),.006)*.94);
+    rgb = mix(rgb,vec3(.20,.14,.09),box(p,vec2(scx,.306),vec2((sR-sL)*.5,.006),.004));
+    rgb = mix(rgb,vec3(.20,.14,.09),box(p,vec2(scx,.172),vec2((sR-sL)*.5,.006),.004));
+    vec3 bk1=vec3(.42,.30,.22); vec3 bk2=vec3(.30,.36,.42); vec3 bk3=vec3(.48,.42,.30); vec3 bk4=vec3(.36,.26,.30);
+    rgb = mix(rgb,bk1,box(p,vec2(.14,.243),vec2(.030,.060),.010)*.9);
+    rgb = mix(rgb,bk2,box(p,vec2(.19,.246),vec2(.026,.057),.010)*.9);
+    rgb = mix(rgb,bk3,box(p,vec2(.24,.242),vec2(.034,.063),.010)*.9);
+    rgb = mix(rgb,bk4,box(p,vec2(.31,.245),vec2(.028,.058),.010)*.9);
+    rgb = mix(rgb,bk2,box(p,vec2(.40,.140),vec2(.032,.058),.010)*.9);
+    rgb = mix(rgb,bk1,box(p,vec2(.46,.142),vec2(.026,.056),.010)*.9);
+    // desk (lower right)
+    vec3 deskWood = mix(vec3(.360,.232,.142),vec3(.452,.302,.188),grain);
+    rgb = mix(rgb,deskWood,box(p,vec2(.700,.545),vec2(.248,.012),.006)*.97);
+    rgb = mix(rgb,deskWood*.82,box(p,vec2(.474,.494),vec2(.010,.050),.004)*.92);
+    rgb = mix(rgb,deskWood*.82,box(p,vec2(.926,.494),vec2(.010,.050),.004)*.92);
+    // desk lamp: warm glow + shade + stem + base
+    float lamp = disc(p,vec2(.612,.516),vec2(.112,.126),.95);
+    rgb += vec3(.440,.300,.136)*lamp*lamp*.86;
+    vec3 shadeCol=vec3(.870,.712,.418); vec3 stemCol=vec3(.322,.266,.198);
+    rgb = mix(rgb,shadeCol,box(p,vec2(.612,.530),vec2(.050,.004),.003)*.94);
+    rgb = mix(rgb,shadeCol,box(p,vec2(.577,.522),vec2(.0030,.015),.004));
+    rgb = mix(rgb,shadeCol,box(p,vec2(.647,.522),vec2(.0030,.015),.004));
+    rgb = mix(rgb,stemCol,box(p,vec2(.632,.494),vec2(.0032,.016),.003)*.92);
+    rgb = mix(rgb,stemCol*.95,disc(p,vec2(.632,.474),vec2(.026,.0062),.5)*.92);
+    // book stack on desk
+    rgb = mix(rgb,bk4,box(p,vec2(.545,.556),vec2(.05,.006),.003)*.9);
+    rgb = mix(rgb,bk2,box(p,vec2(.545,.563),vec2(.045,.006),.003)*.9);
+    return rgb;
   }
 
   vec3 reflectLight(vec2 p, vec2 center, float radius, vec3 glow, float seed) {
@@ -88,53 +88,59 @@ export const stageFragment = /* glsl */`
     reflection *= (.26 + .42 * (.5+.5*sin(p.y * 75. + time*.4))) * (1.-smoothstep(.25,.51,y));
     return glow*(halo*.67+highlight*.17+reflection);
   }
-  vec3 street(vec2 p) {
-    vec3 rgb = mix(vec3(.34,.29,.42),vec3(.245,.25,.305),smoothstep(.26,1.,p.y));
-    vec2 windows = p * vec2(63.,27.);
-    vec2 cell = floor(windows);
-    float building = sin(p.x*29.1)*sin(p.x*12.8);
-    float lit = step(.83,rand(cell))*box(fract(windows),vec2(.5),vec2(.13,.20),.23);
-    rgb += lit * vec3(.26,.21,.14) * (1.-smoothstep(.25,.33,p.y));
-    rgb *= .97 + .055 * (building+.4*rand(vec2(floor(p.y*245.),0.)));
-    float crossing = step(.65,fract((p.y-.46)*6.4+(p.x-.5)*3.)) *
-                     smoothstep(.31,.48,p.y) * (1.-smoothstep(.56,.70,p.y));
-    rgb += crossing * vec3(.075,.082,.091);
-    rgb += reflectLight(p,vec2(.047,.094),.033,vec3(.21,.51,.61),1.);
-    rgb += reflectLight(p,vec2(.137,.105),.028,vec3(.19,.52,.65),2.);
-    rgb += reflectLight(p,vec2(.251,.245),.017,vec3(.59,.25,.43),3.);
-    rgb += reflectLight(p,vec2(.364,.038),.014,vec3(.30,.70,.71),4.);
-    rgb += reflectLight(p,vec2(.512,.145),.020,vec3(.74,.30,.57),5.);
-    rgb += reflectLight(p,vec2(.512,.217),.032,vec3(.45,.20,.40),6.);
-    rgb += reflectLight(p,vec2(.596,.072),.034,vec3(.67,.37,.70),7.);
-    rgb += reflectLight(p,vec2(.650,.278),.012,vec3(.60,.53,.51),8.);
-    rgb += reflectLight(p,vec2(.959,.052),.032,vec3(.70,.48,.25),9.);
-    vec2 rain = vec2((p.x - p.y*.085)*150.,(p.y-time*.92)*14.);
-    float drop = step(.91,rand(vec2(floor(rain.x),0.)))*box(fract(rain),vec2(.50,.5),vec2(.047,.23),.06);
-    return rgb + drop * vec3(.11,.13,.18);
+  vec3 bedroom(vec2 p) {
+    // dim night wall (deep blue-purple)
+    vec3 rgb = mix(vec3(.20,.17,.26),vec3(.14,.12,.18),smoothstep(.1,1.,p.y));
+    // carpet (lower)
+    float floorY = .62 + .06*abs(p.x-.5);
+    vec3 carpet = vec3(.24,.20,.18)*(0.94+0.06*sin(p.x*90.)*sin(p.y*90.));
+    rgb = mix(rgb,carpet,smoothstep(-.012,.012,p.y-floorY));
+    // headboard (dark brown)
+    rgb = mix(rgb,vec3(.30,.20,.14),box(p,vec2(.40,.33),vec2(.26,.10),.02)*.9);
+    // bed sheet + two pillows
+    rgb = mix(rgb,vec3(.48,.46,.52),box(p,vec2(.40,.455),vec2(.28,.09),.02)*.85);
+    rgb = mix(rgb,vec3(.72,.70,.74),box(p,vec2(.26,.382),vec2(.09,.05),.04)*.9);
+    rgb = mix(rgb,vec3(.72,.70,.74),box(p,vec2(.52,.382),vec2(.09,.05),.04)*.9);
+    // right curtain (folds)
+    rgb = mix(rgb,vec3(.30,.26,.36),step(.70,p.x)*step(p.x,.94)*step(.05,p.y)*step(p.y,.60)*(.86+.10*sin(p.x*40.))*.85);
+    // bedside night light (warm orange glow)
+    rgb += reflectLight(p,vec2(.70,.40),.05,vec3(.60,.35,.15),3.)*.6;
+    return rgb;
   }
 
-  vec3 pool(vec2 p) {
-    float shore = .584 + p.x*.208;
-    float back = .351 + p.x*.035;
-    float ripple1 = sin(p.x*51.+p.y*38.+2.9*sin(p.y*41.+p.x*14.-time*.44));
-    float ripple2 = sin(p.y*113.+p.x*31.+2.7*sin(p.x*42.-time*.3));
-    float foam = pow(1.-abs(ripple1*ripple2),12.) * .24 + pow(max(0.,ripple1*ripple2),19.)*.22;
-    vec3 water = mix(vec3(.741,.864,.919),vec3(.60,.83,.879),smoothstep(back,shore,p.y));
-    water += foam*vec3(.85,.96,.99)*smoothstep(back,shore,p.y);
-    vec3 deck = vec3(.908,.893,.851) - tileFloor(p, .22)*.057;
-    deck += (rand(floor(p*vec2(122.,135.))) - .5)*.012;
-    vec3 rgb = mix(water,deck,smoothstep(shore,shore+.015,p.y));
-    rgb = mix(rgb,vec3(.960,.960,.955),box(vec2(p.x,p.y-shore),vec2(.5,.006),vec2(.7,.011),.004));
-    rgb = mix(rgb,vec3(.906,.903,.883),1.-smoothstep(back-.002,back+.001,p.y));
-    float hedgeTop = .063 + .015*sin(p.x*20.) + .013*sin(p.x*47.) + .012*sin(p.x*12.);
-    float hedge = smoothstep(hedgeTop-.022,hedgeTop+.019,p.y);
-    vec3 leaves = mix(vec3(.80,.90,.93),vec3(.55,.70,.53),hedge);
-    leaves *= .98 + .043*sin(p.x*35.)*sin(p.y*16.);
-    rgb = mix(rgb,leaves,1.-smoothstep(.187,.204,p.y));
-    vec2 f = (p-vec2(.564,.531))/vec2(.055,.012);
-    float floatRing = (1.-smoothstep(.86,1.,length(f))) * smoothstep(.39,.58,length(f));
-    vec3 stripe = mix(vec3(.95,.96,.93),vec3(.93,.53,.49),step(.0,sin(atan(f.y,f.x)*4.)));
-    return mix(rgb,stripe,floatRing*.86);
+  vec3 office(vec2 p) {
+    // cool grey wall
+    vec3 rgb = mix(vec3(.66,.68,.72),vec3(.55,.58,.63),smoothstep(.05,1.,p.y));
+    // cool grey tile floor
+    float floorY = .60 + .05*abs(p.x-.5);
+    rgb = mix(rgb,vec3(.72,.73,.71)-.04*tileFloor(p,.3),smoothstep(-.012,.012,p.y-floorY));
+    // floor-to-ceiling window (mid-top): cold white / pale blue sky
+    float wL=.18, wR=.82, wT=.08, wB=.52;
+    float wcx=(wL+wR)*.5, wcy=(wT+wB)*.5, wu=(wR-wL)*.5, wv=(wB-wT)*.5;
+    vec3 sky = mix(vec3(.82,.88,.94),vec3(.70,.80,.92),smoothstep(wT,wB,p.y));
+    sky += .045*sin(p.x*30.+p.y*12.)*sin(p.x*17.-p.y*7.);
+    rgb = mix(rgb,sky,box(p,vec2(wcx,wcy),vec2(wu,wv),.004)*.92);
+    // window frame ring (outer minus inner) + mullions
+    float fOut = box(p,vec2(wcx,wcy),vec2(wu+.006,wv+.006),.006);
+    float fIn = box(p,vec2(wcx,wcy),vec2(wu-.006,wv-.006),.006);
+    float frame = max(0., fOut - fIn);
+    frame = max(frame, box(p,vec2(.50,wcy),vec2(.005,wv),.003));
+    frame = max(frame, box(p,vec2(wcx,.30),vec2(wu,.005),.003));
+    rgb = mix(rgb,vec3(.30,.32,.36),frame*.85);
+    // desk (below window)
+    rgb = mix(rgb,vec3(.42,.44,.48),box(p,vec2(.50,.56),vec2(.30,.012),.006)*.9);
+    rgb = mix(rgb,vec3(.42,.44,.48)*.8,box(p,vec2(.24,.50),vec2(.012,.05),.004)*.9);
+    rgb = mix(rgb,vec3(.42,.44,.48)*.8,box(p,vec2(.76,.50),vec2(.012,.05),.004)*.9);
+    // office chair silhouette (lower right)
+    rgb = mix(rgb,vec3(.18,.20,.24),box(p,vec2(.62,.585),vec2(.06,.03),.02));
+    rgb = mix(rgb,vec3(.18,.20,.24),box(p,vec2(.62,.635),vec2(.05,.02),.02));
+    rgb = mix(rgb,vec3(.20,.22,.26),box(p,vec2(.62,.665),vec2(.010,.030),.003));
+    // houseplant (lower-left by window: terracotta pot + saturated foliage)
+    rgb = mix(rgb,vec3(.40,.24,.15),box(p,vec2(.160,.545),vec2(.034,.030),.005));
+    rgb = mix(rgb,vec3(.20,.58,.30),disc(p,vec2(.160,.585),vec2(.090,.105),.35)*.96);
+    rgb = mix(rgb,vec3(.30,.68,.38),disc(p,vec2(.205,.620),vec2(.068,.072),.30)*.95);
+    rgb = mix(rgb,vec3(.42,.74,.44),disc(p,vec2(.128,.628),vec2(.062,.058),.30)*.92);
+    return rgb;
   }
 
   void main() {
@@ -143,9 +149,9 @@ export const stageFragment = /* glsl */`
     vec3 rgb = mix(lower, upper, smoothstep(-.12,.81,screen.y));
     rgb = rgb * (1.-.082*vignette) + vec3(.025) * (1.-vignette)*sin(screen.y*3.14159);
     vec2 p = vec2(.5+(screen.x-.5)*clamp(aspect/1.6,.42,1.6),1.-screen.y);
-    if (kind == 1.) rgb = pow(max(vec3(0.),bathroom(p)),vec3(2.2));
-    if (kind == 2.) rgb = pow(max(vec3(0.),street(p)),vec3(2.2));
-    if (kind == 3.) rgb = pow(max(vec3(0.),pool(p)),vec3(2.2));
+    if (kind == 1.) rgb = pow(max(vec3(0.),study(p)),vec3(2.2));
+    if (kind == 2.) rgb = pow(max(vec3(0.),bedroom(p)),vec3(2.2));
+    if (kind == 3.) rgb = pow(max(vec3(0.),office(p)),vec3(2.2));
     gl_FragColor = vec4(rgb,1.);
     #include <colorspace_fragment>
   }
@@ -314,8 +320,14 @@ export const dropletVertex = /* glsl */`
   varying vec3 facing;
   varying vec3 eyeDirection;
   void main() {
-    vec4 viewPoint = modelViewMatrix * vec4(position,1.);
-    facing = normalize(normalMatrix * normal);
+    vec3 p = position;
+    vec3 n = normal;
+    #ifdef USE_INSTANCING
+      p = (instanceMatrix * vec4(p, 1.)).xyz;
+      n = normalize(mat3(instanceMatrix) * n);
+    #endif
+    vec4 viewPoint = modelViewMatrix * vec4(p, 1.);
+    facing = normalize(normalMatrix * n);
     eyeDirection = -viewPoint.xyz;
     gl_Position = projectionMatrix * viewPoint;
   }
@@ -334,6 +346,27 @@ export const dropletFragment = /* glsl */`
     vec3 color = mix(vec3(.48,.49,.57),vec3(.92,.96,1.),oval);
     color = mix(color,vec3(1.),specular*.94);
     gl_FragColor = vec4(color,.16 + .35*fresnel + .64*specular);
+    #include <colorspace_fragment>
+  }
+`;
+
+export const rippleVertex = /* glsl */`
+  attribute float aAlpha;
+  varying float fade;
+  void main() {
+    vec3 p = position;
+    #ifdef USE_INSTANCING
+      p = (instanceMatrix * vec4(p, 1.)).xyz;
+    #endif
+    fade = aAlpha;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.);
+  }
+`;
+
+export const rippleFragment = /* glsl */`
+  varying float fade;
+  void main() {
+    gl_FragColor = vec4(.969, .953, .992, fade);
     #include <colorspace_fragment>
   }
 `;

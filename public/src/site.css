@@ -90,9 +90,10 @@ body.ready.scene-in #view {
 
 .logo {
   font-family:var(--font-logo);
-  font-size:30px;
+  font-size:26px;
   line-height:1.1;
-  letter-spacing:.12em;
+  letter-spacing:.04em;
+  white-space:nowrap;
   color:var(--ink-strong);
   transition:color .3s
 }
@@ -1050,7 +1051,7 @@ body.wide.short .tool svg,body.wide.short .mode svg {
 }
 
 body.wide.short .logo {
-  font-size:24px
+  font-size:20px
 }
 
 body.wide.short .sub {
@@ -1081,7 +1082,7 @@ body.roomy .brand {
 }
 
 body.roomy .logo {
-  font-size:34px
+  font-size:30px
 }
 
 body.roomy .corner {
@@ -1209,4 +1210,13 @@ body.fine .pane-hint.keys {
     animation-duration:2.4s
   }
 
+}
+
+/* 移动端竖屏（非 wide）：性能要求，去掉大阴影，所有 box-shadow:var(--shadow) 自动继承 */
+body:not(.wide){--shadow:none}
+
+/* 性能降级开关 ?perf=low：全站关 backdrop-filter（全屏模糊是帧率主瓶颈） */
+body.perf-low .dock,body.perf-low .sheet,body.perf-low .about,body.perf-low .round,
+body.perf-low .hint,body.perf-low .photo,body.perf-low .copybox,body.perf-low .seg{
+  backdrop-filter:none;-webkit-backdrop-filter:none
 }

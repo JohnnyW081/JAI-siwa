@@ -29,7 +29,7 @@ const PATTERNS = {
   seam: '后中缝', hearts: '爱心', stars: '星星', paws: '猫爪', lace: '全蕾丝', fade: '渐变',
 };
 
-const SECRETS = {none: '无', hearts: '藏爱心', stars: '藏星星', paws: '藏猫爪', words: '藏雨丝'};
+const SECRETS = {none: '无', hearts: '藏爱心', stars: '藏星星', paws: '藏猫爪', words: '藏字'};
 const WET_COLORS = {'': '不变', sakura: '变樱粉', mist: '变雾蓝', taro: '变香芋紫', cherry: '变正红'};
 const DENIERS = {15: '15D', 40: '40D', 70: '70D', 120: '120D'};
 const BACKDROPS = {
@@ -38,9 +38,9 @@ const BACKDROPS = {
 };
 const SCENES = {
   studio: ['影棚', '细雨', '影棚：干净的纸背景，底色可以换，适合拍照。', '#efe9f1'],
-  bath: ['浴室', '花洒', '浴室：「细雨」在这里是头顶的花洒，湿地砖会映出腿的倒影。', '#eef1f2'],
-  street: ['夜雨街头', '夜雨', '夜雨街头：这里一直下着雨，霓虹的光勾在丝袜上，也映在路面上。', '#141224'],
-  pool: ['泳池边', '太阳雨', '泳池边：太阳底下，水面的波光会晃到腿上。', '#e6f3f6'],
+  bath: ['书房', '暖雨', '书房：木质书架和书桌，台灯光暖，木地板踏实。', '#e8dcc8'],
+  street: ['卧室', '月光', '卧室：夜里床头一盏灯，窗帘垂着，地毯软软的。', '#1e1a2a'],
+  pool: ['办公室', '冷光', '办公室：落地窗透进冷白日光，桌上摆着绿植。', '#e8ecef'],
 };
 const TABS = {
   pose: '姿势', preset: '套装', style: '款式', color: '颜色', material: '材质', pattern: '花纹', fun: '彩蛋',
@@ -118,9 +118,8 @@ function presetLegs(index) {
   return legs.map(leg => ({...DEFAULT_STOCKING, ...leg}));
 }
 
-function engineMaterial(legs, target) {
+function engineMaterial(legs) {
   return {
-    target,
     legs: legs.map(leg => ({
       ...leg,
       color: COLORS[leg.color]?.[1] ?? leg.color,
@@ -143,14 +142,20 @@ function serializeLook(state) {
     leg.length, leg.cuff, Number(leg.garter), leg.material, leg.denier, leg.pattern,
     encodeColor(leg.color), leg.secret, encodeColor(leg.wetColor) || '-',
   ].join('.'));
-  return ['1', state.pose, state.scene, encodeColor(state.backdrop), ...legs].join('~');
+  return ['3', state.pose, state.scene, encodeColor(state.backdrop), ...legs].join('~');
 }
 
 function deserializeLook(hash) {
   const serialized = new URLSearchParams(hash.slice(1)).get('look');
   if (!serialized) return null;
-  const [version, pose, scene, backdrop, left, right = left] = serialized.split('~');
-  if (version !== '1') return null;
+  const parts = serialized.split('~');
+  const version = parts[0];
+  if (version !== '1' && version !== '2' && version !== '3') return null;
+  const [pose, scene, backdrop] = [parts[1], parts[2], parts[3]];
+  // v1/v3 无鞋字段 legs 从 4 起；v2 老链接带鞋字段 legs 从 6 起（鞋字段被忽略）
+  const leftIndex = version === '2' ? 6 : 4;
+  const left = parts[leftIndex];
+  const right = parts[leftIndex + 1] ?? left;
 
   const readLeg = value => {
     const [length, cuff, garter, material, denier, pattern, color, secret, wetColor] =
@@ -178,7 +183,7 @@ function deserializeLook(hash) {
 
 export function initUI(engine) {
   const state = {
-    pose: 'step', scene: 'studio', backdrop: 'lilac', target: '-1', tab: 'pose',
+    pose: 'step', scene: 'bath', backdrop: 'lilac', target: '-1', tab: 'pose',
     mode: 'water', rain: false, slow: false, sound: true, legs: presetLegs(0),
   };
   const body = document.body;
@@ -329,7 +334,7 @@ export function initUI(engine) {
   }
 
   function drawThumbnails() {
-    const material = engineMaterial(state.legs, state.target);
+    const material = engineMaterial(state.legs);
     const sceneKey = JSON.stringify([state.pose, state.backdrop, material.legs]);
     if (body.classList.contains('scene-open') && sceneThumbState !== sceneKey) {
       sceneThumbState = sceneKey;
@@ -346,7 +351,7 @@ export function initUI(engine) {
       for (const card of presetChoices.children) {
         drawThumbnail(card, {
           scene: 'studio', backdrop: 'lilac', pose: state.pose,
-          material: engineMaterial(presetLegs(Number(card.dataset.v)), '-1'),
+          material: engineMaterial(presetLegs(Number(card.dataset.v))),
         }, state.pose === 'step' && 'materials-' + card.dataset.v);
       }
     }
@@ -458,7 +463,7 @@ export function initUI(engine) {
 
   function applyMaterial(legs = state.legs, temporary = false) {
     if (!temporary) state.legs = legs;
-    engine.setMaterial(engineMaterial(legs, state.target), {temporary});
+    engine.setMaterial(engineMaterial(legs));
     if (temporary) return;
     syncWardrobe();
     drawThumbnails();

@@ -56,9 +56,9 @@ function toGeometry(THREE, mesh, asset) {
 
 export async function loadMesh(THREE) {
   const asset = await readAsset();
-  const [stocking, skin] = asset.document.meshes;
+  // 只解析 stocking 网格（主渲染用）；第二个 skin 网格未被任何渲染路径引用，构建它是纯浪费，故跳过
+  const [stocking] = asset.document.meshes;
   return {
     stocking: toGeometry(THREE, stocking, asset),
-    skin: toGeometry(THREE, skin, asset),
   };
 }

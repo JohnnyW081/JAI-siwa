@@ -1,10 +1,23 @@
 import * as THREE from '../vendor/three.module.js';
 import { loadMesh } from './mesh.js';
-import { dropletFragment, dropletVertex, fabricFragment, fabricVertex, outlineFragment, outlineVertex, stageFragment, stageVertex } from './shaders.js';
-import { initUI } from './ui.js';
+import { dropletFragment, dropletVertex, fabricFragment, fabricVertex, outlineFragment, outlineVertex, rippleFragment, rippleVertex, stageFragment, stageVertex } from './shaders.js';
 import { applyPose } from './pose.js';
+import { initUI } from './ui.js';
 
 const canvas = document.getElementById('view');
+// 降级开关：?perf=low → 立即降级；否则加载后实测 3s 帧率，<45fps 自动降级
+// 降级内容：关 backdrop-filter（全屏模糊是帧率主凶）+ 渲染分辨率 ×0.75 + 水珠/涟漪上限减半
+let lowMode = new URLSearchParams(location.search).get('perf') === 'low';
+let engineResize = null; // createEngine 内部的 resize 回调桥，降级时需重新应用 DPR
+const dropCap = () => lowMode ? 160 : 390;
+const rippleCap = () => lowMode ? 12 : 28;
+function applyLowMode() {
+  if (lowMode) return;
+  lowMode = true;
+  document.body.classList.add('perf-low');
+  engineResize?.();
+}
+if (lowMode) document.body.classList.add('perf-low');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const mobilePointer = matchMedia('(pointer: coarse)').matches;
 const lengths = {
@@ -23,9 +36,9 @@ const backgrounds = {
 };
 const sceneKeys = ['studio', 'bath', 'street', 'pool'];
 const scenicColors = {
-  bath: ['#ccdfe2', '#bec7cd'],
-  street: ['#303044', '#252a39'],
-  pool: ['#bde9ea', '#e4dccc'],
+  bath: ['#d9c3a3', '#b08d5e'],
+  street: ['#2a2438', '#1e1a2a'],
+  pool: ['#cdd5da', '#9aa4ad'],
 };
 const styles = ['sheer', 'matte', 'gloss', 'pearl', 'velvet', 'cotton', 'latex'];
 const cuffs = ['plain', 'lace', 'stripes', 'rib', 'bow'];
@@ -39,17 +52,31 @@ function createSound() {
   let context;
   let noise;
   let enabled = true;
+  // 预热：首次泼水时才 new AudioContext() 会同步阻塞主线程（实测首泼卡 1.3~1.7s），
+  // 故在加载期提前建好；未拿到用户手势前上下文是 suspended，首次播放时 resume() 即可
+  if (window.AudioContext) {
+    try {
+      context = new AudioContext();
+      noise = context.createBuffer(1, context.sampleRate * .55, context.sampleRate);
+      const samples = noise.getChannelData(0);
+      for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+    } catch {
+      context = undefined;
+      noise = undefined;
+    }
+  }
   return {
     setEnabled(value) { enabled = value; },
     play(strength = 1) {
       if (!enabled || !window.AudioContext) return;
       context ??= new AudioContext();
       if (context.state === 'suspended') context.resume().catch(() => {});
-      if (!noise) {
-        noise = context.createBuffer(1, context.sampleRate * .55, context.sampleRate);
-        const samples = noise.getChannelData(0);
+      noise ??= (() => {
+        const buffer = context.createBuffer(1, context.sampleRate * .55, context.sampleRate);
+        const samples = buffer.getChannelData(0);
         for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
-      }
+        return buffer;
+      })();
       const source = context.createBufferSource();
       const filter = context.createBiquadFilter();
       const gain = context.createGain();
@@ -167,7 +194,6 @@ function bakeFloorShadow(models) {
     outlines.fillStyle = 'white';
     outlines.fill();
   }
-
   const ctx = image.getContext('2d');
   ctx.filter = 'blur(3px)';
   ctx.drawImage(raw, 0, 0);
@@ -184,7 +210,7 @@ function bakeFloorShadow(models) {
 
 function createEngine({ stocking }) {
   const renderer = new THREE.WebGLRenderer({
-    canvas, antialias: true, alpha: false, preserveDrawingBuffer: true,
+    canvas, antialias: !lowMode, alpha: false, preserveDrawingBuffer: true,
     powerPreference: mobilePointer ? 'default' : 'high-performance',
   });
   const world = new THREE.Scene();
@@ -257,13 +283,36 @@ function createEngine({ stocking }) {
 
   const droplets = [];
   const ripples = [];
+  const dummy = new THREE.Object3D();
   const dropletGeometry = new THREE.IcosahedronGeometry(1, 1);
   const dropMaterial = new THREE.ShaderMaterial({
     vertexShader: dropletVertex, fragmentShader: dropletFragment, transparent: true, depthWrite: false,
   });
-  const rimGeometry = new THREE.RingGeometry(.83, 1, 28);
+  // 水珠/涟漪各合并为一个 InstancedMesh：390+28 个独立 Mesh = 400+ draw call，合并后各 1 个
+  const dropletPool = new THREE.InstancedMesh(dropletGeometry, dropMaterial, 390);
+  dropletPool.renderOrder = 3;
+  dropletPool.frustumCulled = false;
+  dropletPool.count = 0;
+  dropletPool.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  world.add(dropletPool);
+  const ringGeometry = new THREE.RingGeometry(.83, 1, 28);
+  const rippleMaterial = new THREE.ShaderMaterial({
+    vertexShader: rippleVertex, fragmentShader: rippleFragment, transparent: true, depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const ripplePool = new THREE.InstancedMesh(ringGeometry, rippleMaterial, 28);
+  ripplePool.renderOrder = 3;
+  ripplePool.frustumCulled = false;
+  ripplePool.count = 0;
+  ripplePool.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const rippleAlpha = new Float32Array(28);
+  ringGeometry.setAttribute('aAlpha', new THREE.InstancedBufferAttribute(rippleAlpha, 1).setUsage(THREE.DynamicDrawUsage));
+  world.add(ripplePool);
   const ray = new THREE.Raycaster();
   const hitVector = new THREE.Vector2();
+  // 复用临时向量：worldToLocal/localToWorld 每帧高频调用，避免每帧 new 对象触发 GC
+  const tmpVec = new THREE.Vector3();
+  const tmpLocal = new THREE.Vector3();
   const sound = createSound();
   const pointers = new Map();
   const view = { yaw: .62, pitch: .1, range: 2.50, target: restTarget.clone() };
@@ -297,13 +346,13 @@ function createEngine({ stocking }) {
     if (customColor && environment === 'studio') settings.lower.value.copy(settings.upper.value).multiplyScalar(.79);
     settings.kind.value = Math.max(0, sceneKeys.indexOf(environment));
     const tint = environment === 'street' ? '#c1afd2' : '#ffffff';
-    const reflectAmount = { bath: .22, street: .28, pool: .12 }[environment] ?? 0;
+    const reflectAmount = { bath: .08, street: .10, pool: .18 }[environment] ?? 0;
     models.forEach(({ group, cloth, reflection }) => {
       cloth.material.uniforms.tint.value.set(tint);
       reflection.material.uniforms.reflection.value = reflectAmount;
       reflection.visible = group.visible && reflectAmount > 0;
     });
-    floorShade.material.color.set({bath: '#84929f', pool: '#8a877f', street: '#252333'}[environment] ?? '#9a88a8');
+    floorShade.material.color.set({bath: '#8a6f4d', pool: '#7c8088', street: '#241f2e'}[environment] ?? '#9a88a8');
   }
 
   function setMaterial(config) {
@@ -313,7 +362,6 @@ function createEngine({ stocking }) {
 
   function setPose(name) {
     const next = poses.includes(name) ? name : 'step';
-    if (next === pose && models[0].cloth.geometry.hasAttribute('restPosition')) return;
     pose = next;
     models.forEach(({ group, cloth, reflection }, index) => {
       const { x, y, z, visible } = applyPose(cloth.geometry, stocking, pose, index);
@@ -361,7 +409,8 @@ function createEngine({ stocking }) {
     width = Math.max(1, canvas.clientWidth);
     height = Math.max(1, canvas.clientHeight);
     const limit = mobilePointer ? 2200000 : 4200000;
-    renderer.setPixelRatio(Math.min(devicePixelRatio, mobilePointer ? 2 : 1.75, Math.sqrt(limit / (width * height))));
+    const scale = lowMode ? .75 : 1;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, mobilePointer ? 1.5 : 1.75, Math.sqrt(limit / (width * height))) * scale);
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     backdropMaterial.uniforms.aspect.value = camera.aspect;
@@ -397,7 +446,7 @@ function createEngine({ stocking }) {
   function markWet(mesh, point, radius) {
     const index = mesh.userData.leg;
     const model = models[index];
-    const local = mesh.worldToLocal(point.clone());
+    const local = mesh.worldToLocal(tmpLocal.copy(point));
     const uniforms = mesh.material.uniforms;
     if (local.y >= uniforms.lengthLimit.value && uniforms.lengthLimit.value < .9) return;
     const stains = uniforms.stains.value;
@@ -410,50 +459,74 @@ function createEngine({ stocking }) {
   }
 
   function rippleAt(position) {
-    if (ripples.length >= 28) return;
-    const mesh = new THREE.Mesh(rimGeometry, new THREE.MeshBasicMaterial({
-      color: '#f7f3fd', transparent: true, opacity: .60, depthWrite: false, side: THREE.DoubleSide,
-    }));
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(position.x, .003, position.z);
-    mesh.scale.setScalar(.013);
-    world.add(mesh);
-    ripples.push({ mesh, age: 0 });
+    if (ripples.length >= rippleCap()) return;
+    ripples.push({ x: position.x, z: position.z, age: 0 });
   }
 
   function spawnDrops(point, amount, power, attached) {
-    const count = Math.min(amount, 390 - droplets.length);
+    const count = Math.min(amount, dropCap() - droplets.length);
     for (let i = 0; i < count; i++) {
       const speed = .13 + Math.random() * power;
       const angle = Math.random() * Math.PI * 2;
       const radius = (.0008 + Math.pow(Math.random(), 2) * .0042) * (.64 + power * .33);
-      const mesh = new THREE.Mesh(dropletGeometry, dropMaterial);
-      mesh.position.copy(point);
-      mesh.position.x += (Math.random() - .5) * .028;
-      mesh.position.z += (Math.random() - .5) * .024;
-      mesh.scale.set(radius, radius * (1.2 + Math.random() * .70), radius);
-      mesh.renderOrder = 3;
-      world.add(mesh);
+      const position = point.clone();
+      position.x += (Math.random() - .5) * .028;
+      position.z += (Math.random() - .5) * .024;
       const bead = Boolean(attached) && i % 4 === 0;
       const velocity = new THREE.Vector3(
         Math.cos(angle) * speed, .12 + Math.random() * .76 * power, Math.sin(angle) * speed,
       );
       if (bead) velocity.set(0, -.01 - Math.random() * .07, 0);
-      droplets.push({ mesh, velocity, bead, age: 0, life: bead ? 1.15 + Math.random() * 3.5 : 1.35 });
+      droplets.push({
+        position, velocity, bead, age: 0, life: bead ? 1.15 + Math.random() * 3.5 : 1.35,
+        sx: radius, sy: radius * (1.2 + Math.random() * .70), sz: radius,
+      });
     }
+  }
+
+  function syncDroplets() {
+    const count = Math.min(droplets.length, dropCap());
+    for (let i = 0; i < count; i++) {
+      const drop = droplets[i];
+      dummy.position.copy(drop.position);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(drop.sx, drop.sy, drop.sz);
+      dummy.updateMatrix();
+      dropletPool.setMatrixAt(i, dummy.matrix);
+    }
+    dropletPool.count = count;
+    dropletPool.instanceMatrix.needsUpdate = true;
+  }
+
+  function syncRipples() {
+    const count = Math.min(ripples.length, rippleCap());
+    for (let i = 0; i < count; i++) {
+      const ring = ripples[i];
+      const size = .012 + ring.age * .16;
+      dummy.position.set(ring.x, .003, ring.z);
+      dummy.rotation.set(-Math.PI / 2, 0, 0);
+      dummy.scale.setScalar(size);
+      dummy.updateMatrix();
+      ripplePool.setMatrixAt(i, dummy.matrix);
+      rippleAlpha[i] = .56 * Math.max(0, 1 - ring.age * 1.58);
+    }
+    ripplePool.count = count;
+    ripplePool.instanceMatrix.needsUpdate = true;
+    ringGeometry.attributes.aAlpha.needsUpdate = true;
   }
 
   function pickLeg(x, y) {
     const rect = canvas.getBoundingClientRect();
     hitVector.set((x - rect.left) / rect.width * 2 - 1, 1 - (y - rect.top) / rect.height * 2);
     ray.setFromCamera(hitVector, camera);
-    return ray.intersectObjects(legMeshes.filter(mesh => mesh.parent.visible), false)[0];
+    const targets = legMeshes.filter(mesh => mesh.parent.visible);
+    return ray.intersectObjects(targets, false)[0];
   }
 
   function splash(x, y, quiet = false) {
     const hit = pickLeg(x, y);
     if (!hit) return false;
-    const local = hit.object.worldToLocal(hit.point.clone());
+    const local = hit.object.worldToLocal(tmpVec.copy(hit.point));
     if (local.y > hit.object.material.uniforms.lengthLimit.value) return false;
     markWet(hit.object, hit.point, quiet ? .026 : .046);
     spawnDrops(hit.point, quiet ? 7 : 50, quiet ? .55 : 1.01, true);
@@ -489,13 +562,12 @@ function createEngine({ stocking }) {
     for (const model of models) {
       for (const mark of model.cloth.material.uniforms.stains.value) mark.w = 0;
     }
-    for (const { mesh } of droplets) world.remove(mesh);
-    for (const { mesh } of ripples) {
-      mesh.material.dispose();
-      world.remove(mesh);
-    }
     droplets.length = 0;
     ripples.length = 0;
+    dropletPool.count = 0;
+    dropletPool.instanceMatrix.needsUpdate = true;
+    ripplePool.count = 0;
+    ripplePool.instanceMatrix.needsUpdate = true;
   }
 
   function updateWater(delta) {
@@ -505,10 +577,10 @@ function createEngine({ stocking }) {
       for (const { group, cloth } of models.filter(model => model.group.visible)) {
         const x = (Math.random() - .5) * .18;
         const z = (Math.random() - .5) * .19;
-        const point = group.localToWorld(new THREE.Vector3(x, .95 + Math.random() * .22, z));
+        const point = group.localToWorld(tmpVec.set(x, .95 + Math.random() * .22, z));
         spawnDrops(point, 3, .45, false);
         if (Math.random() > .35) {
-          const skin = group.localToWorld(new THREE.Vector3(x * .65, .11 + Math.random() * .54, z * .58));
+          const skin = group.localToWorld(tmpLocal.set(x * .65, .11 + Math.random() * .54, z * .58));
           markWet(cloth, skin, .025 + Math.random() * .025);
         }
       }
@@ -518,24 +590,19 @@ function createEngine({ stocking }) {
       drop.age += delta;
       if (drop.bead && drop.age > .40) drop.velocity.y -= delta * .13;
       if (!drop.bead) drop.velocity.y -= delta * 5.0;
-      drop.mesh.position.addScaledVector(drop.velocity, delta);
-      if (drop.mesh.position.y <= .002 || drop.age > drop.life) {
-        if (drop.mesh.position.y <= .002 && Math.random() > .66) rippleAt(drop.mesh.position);
-        world.remove(drop.mesh);
+      drop.position.addScaledVector(drop.velocity, delta);
+      if (drop.position.y <= .002 || drop.age > drop.life) {
+        if (drop.position.y <= .002 && Math.random() > .66) rippleAt(drop.position);
         droplets.splice(i, 1);
       }
     }
+    syncDroplets();
     for (let i = ripples.length - 1; i >= 0; i--) {
       const ring = ripples[i];
       ring.age += delta;
-      ring.mesh.scale.setScalar(.012 + ring.age * .16);
-      ring.mesh.material.opacity = .56 * Math.max(0, 1 - ring.age * 1.58);
-      if (ring.age > .65) {
-        world.remove(ring.mesh);
-        ring.mesh.material.dispose();
-        ripples.splice(i, 1);
-      }
+      if (ring.age > .65) ripples.splice(i, 1);
     }
+    syncRipples();
   }
 
   function run(time) {
@@ -568,10 +635,10 @@ function createEngine({ stocking }) {
     const margin = 28 * scale;
     ctx.fillStyle = 'rgba(47,40,56,.86)';
     ctx.font = `${Math.round(34 * scale)}px "ZCOOL XiaoWei", "Songti SC", serif`;
-    ctx.fillText('雨丝', margin, result.height - margin - 21 * scale);
+    ctx.fillText('JAI', margin, result.height - margin - 21 * scale);
     ctx.fillStyle = 'rgba(92,82,108,.82)';
     ctx.font = `${Math.round(13 * scale)}px system-ui, sans-serif`;
-    ctx.fillText('WET DENIER LAB  ·  newtonquan-yusi.pages.dev', margin, result.height - margin);
+    ctx.fillText('JAI丝袜穿搭实验室', margin, result.height - margin);
     return result.toDataURL('image/jpeg', .93);
   }
 
@@ -588,7 +655,7 @@ function createEngine({ stocking }) {
     thumbnailQueue.delete(target);
     if (target.isConnected) {
       const current = { environment, colorway, wardrobe, pose };
-      const cachedVisibility = [...droplets, ...ripples].map(({ mesh }) => [mesh, mesh.visible]);
+      const cachedVisibility = [[dropletPool, dropletPool.visible], [ripplePool, ripplePool.visible]];
       cachedVisibility.forEach(([mesh]) => { mesh.visible = false; });
       setScene(config?.scene ?? environment, config?.backdrop ?? colorway);
       if (config?.material) setMaterial(config.material);
@@ -671,6 +738,7 @@ function createEngine({ stocking }) {
     zoom(THREE.MathUtils.clamp(-event.deltaY * .008, -1.5, 1.5));
   }, { passive: false });
   new ResizeObserver(resize).observe(canvas);
+  engineResize = resize;
   resize();
   setScene('studio', 'lilac');
   setPose('step');
@@ -697,6 +765,20 @@ try {
   initUI(engine);
   await engine.present();
   requestAnimationFrame(() => document.body.classList.add('ready'));
+  // 加载后实测 3s 帧率，持续 <45fps 自动降级；用户可 ?perf=low 强制降级
+  if (!lowMode) {
+    setTimeout(() => {
+      const marks = [];
+      const probeTick = now => {
+        marks.push(now);
+        if (now - marks[0] < 3000) { requestAnimationFrame(probeTick); return; }
+        const span = marks[marks.length - 1] - marks[0];
+        const fps = (marks.length - 1) / (span / 1000);
+        if (fps < 45) applyLowMode(); // 不向控制台暴露帧率/降级等技术信息，保持静默
+      };
+      requestAnimationFrame(probeTick);
+    }, 1200); // 避开加载/编译卡顿再测
+  }
 } catch (error) {
   console.error(error);
   document.getElementById('loading').textContent = '加载失败，请确认浏览器已启用 WebGL 后刷新。';
